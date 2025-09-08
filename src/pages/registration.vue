@@ -21,20 +21,40 @@ export default {
     };
   },
   methods: {
-    register() {
+    async register() {
       if (this.password !== this.confirmPassword) {
         alert("Passwords do not match!");
         return;
       }
-      // Тут можна відправити дані на сервер
-      console.log("Registering user:", this.username, this.email);
-      alert(`User ${this.username} registered successfully!`);
-      
-      // Очистка форми
-      this.username = '';
-      this.email = '';
-      this.password = '';
-      this.confirmPassword = '';
+
+      try {
+        const response = await fetch("http://localhost:3000/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: this.username,
+            email: this.email,
+            password: this.password
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || "Registration failed");
+        }
+
+        const data = await response.json();
+        alert(`User ${data.username} registered successfully!`);
+
+        // Очистка форми
+        this.username = '';
+        this.email = '';
+        this.password = '';
+        this.confirmPassword = '';
+      } catch (err) {
+        console.error(err);
+        alert(`Error: ${err.message}`);
+      }
     }
   }
 };
