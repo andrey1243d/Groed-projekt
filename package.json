@@ -11,8 +11,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.3",
     "vue": "^3.5.18"
   },
@@ -20,5 +23,18 @@
     "@vitejs/plugin-vue": "^6.0.1",
     "vite": "^7.0.6",
     "vite-plugin-vue-devtools": "^8.0.0"
-  }
+  },
+  "description": "This template should help get you started developing with Vue 3 in Vite.",
+  "main": "vite.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrey1243d/Groed-projekt.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/andrey1243d/Groed-projekt/issues"
+  },
+  "homepage": "https://github.com/andrey1243d/Groed-projekt#readme"
 }
