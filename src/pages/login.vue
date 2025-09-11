@@ -26,13 +26,8 @@ export default {
       try {
         const res = await fetch("http://localhost:3000/login", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            email: this.email,
-            password: this.password
-          })
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: this.email, password: this.password })
         });
 
         const data = await res.json();
@@ -42,13 +37,16 @@ export default {
           return;
         }
 
-        // Зберігаємо токен
+        // Зберігаємо токен у localStorage
         localStorage.setItem("token", data.token);
-        alert(`Вхід успішний! Ласкаво просимо, ${data.username}`);
 
-        // Очищаємо форму
+        // Тепер правильний доступ до username через data.user
+        alert(`Вхід успішний! Ласкаво просимо, ${data.user.username}`);
+
+        // Очистка форми
         this.email = "";
         this.password = "";
+
       } catch (err) {
         console.error(err);
         alert("Сталася помилка при підключенні до сервера");

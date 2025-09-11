@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="registration-container">
     <h1>Registration</h1>
     <input type="text" v-model="username" placeholder="Username" />
     <input type="email" v-model="email" placeholder="Email" />
@@ -22,12 +22,14 @@ export default {
   },
   methods: {
     async register() {
+      // Перевірка пароля
       if (this.password !== this.confirmPassword) {
         alert("Passwords do not match!");
         return;
       }
 
       try {
+        // Надсилаємо запит на сервер
         const response = await fetch("http://localhost:3000/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -38,19 +40,24 @@ export default {
           })
         });
 
+        const data = await response.json();
+
+        // Перевірка на помилки від сервера
         if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || "Registration failed");
+          throw new Error(data.error || "Registration failed");
         }
 
-        const data = await response.json();
-        alert(`User ${data.username} registered successfully!`);
+        // ✅ Зберігаємо токен у localStorage для авторизації на інших сторінках
+        localStorage.setItem("token", data.token);
 
-        // Очистка форми
+        alert(`User ${data.user.username} registered successfully!`);
+
+        // Очищаємо форму
         this.username = '';
         this.email = '';
         this.password = '';
         this.confirmPassword = '';
+
       } catch (err) {
         console.error(err);
         alert(`Error: ${err.message}`);
@@ -61,7 +68,7 @@ export default {
 </script>
 
 <style scoped>
-div {
+.registration-container {
   display: flex;
   flex-direction: column;
   width: 300px;

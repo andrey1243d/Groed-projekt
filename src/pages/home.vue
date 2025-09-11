@@ -4,6 +4,7 @@
     <div v-if="user">
       <p>Вітаємо, {{ user.username }}!</p>
       <p>Email: {{ user.email }}</p>
+      <p>Role: {{ user.role || 'user' }}</p>
     </div>
     <div v-else>
       <p>Ви не авторизовані. Будь ласка, увійдіть.</p>
@@ -24,26 +25,26 @@ export default {
     if (!token) return;
 
     try {
-  const res = await fetch("http://localhost:3000/profile", {
-    method: "GET",
-    headers: {
-      "Authorization": `Bearer ${token}`
+      const res = await fetch("http://localhost:3000/me", { // змінив /profile на /me
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        console.error(`Помилка отримання профілю: ${res.status}`);
+        return;
+      }
+
+      const data = await res.json();
+      this.user = data;
+
+    } catch (err) {
+      console.error("Помилка при fetch:", err);
     }
-  });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    console.error(errorData.error || `Помилка ${res.status}`);
-    return;
   }
-
-  const data = await res.json();
-  this.user = data;
-
-} catch (err) {
-  console.error("Помилка при fetch:", err);
-  }
-}};
+};
 </script>
 
 <style scoped>

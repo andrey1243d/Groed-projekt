@@ -11,9 +11,9 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.use(cors()); // для dev: дозволяє всі джерела, в проді вкажи origin
+app.use(cors()); // для розробки дозволяє всі джерела, в продакшн вкажи origin
 
-// Підключення до PostgreSQL (через змінні середовища)
+// Підключення до PostgreSQL через змінні середовища
 const poolConfig = process.env.DATABASE_URL
   ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
   : {
@@ -28,7 +28,6 @@ const pool = new Pool(poolConfig);
 
 // --- Утиліти ---
 const signToken = (payload) => {
-  // payload зазвичай { id, email }
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "6h" });
 };
 
@@ -54,31 +53,28 @@ const authMiddleware = (req, res, next) => {
 // Health check
 app.get("/", (req, res) => res.send("Server працює"));
 
-// REGISTER: хешуємо пароль, вставляємо в БД, повертаємо JWT + profile
+// REGISTER
 app.post("/register", async (req, res) => {
   const { username, email, password } = req.body;
   if (!username || !email || !password) return res.status(400).json({ error: "username, email and password required" });
 
   try {
-    // 1) хеш пароля
+    // 1) Хеш пароля
     const hash = await bcrypt.hash(password, 12);
 
-    // 2) вставка в БД
+    // 2) Вставка в БД
     const result = await pool.query(
-      `INSERT INTO users (username, email, password)
-       VALUES ($1, $2, $3)
-       RETURNING id, username, email, created_at`,
-      [username, email.toLowerCase(), hash]
+      "INSERT INTO users (username, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role",
+      [username, email.toLowerCase(), hash, "user"]
     );
 
     const user = result.rows[0];
 
-    // 3) підписуємо токен
-    const token = signToken({ id: user.id, email: user.email });
+    // 3) Підписуємо токен
+    const token = signToken({ id: user.id, email: user.email, role: user.role });
 
     return res.status(201).json({ token, user });
   } catch (err) {
-    // handle unique violation (email)
     if (err.code === "23505") {
       return res.status(409).json({ error: "Email or username already exists" });
     }
@@ -87,7 +83,7 @@ app.post("/register", async (req, res) => {
   }
 });
 
-// LOGIN: знаходимо користувача за email, порівнюємо bcrypt, повертаємо JWT + profile
+// LOGIN
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: "email and password required" });
@@ -100,39 +96,36 @@ app.post("/login", async (req, res) => {
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ error: "Invalid email or password" });
 
-    // створюємо токен
-    const token = signToken({ id: user.id, email: user.email });
+    const token = signToken({ id: user.id, email: user.email, role: user.role });
 
-    // не повертаємо password
     return res.json({
       token,
-      user: { id: user.id, username: user.username, email: user.email }
+      user: { id: user.id, username: user.username, email: user.email, role: user.role }
     });
   } catch (err) {
     console.error("Login error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// PROTECTED: отримати свій профіль (треба Authorization: Bearer <token>)
+// GET PROFILE
 app.get("/me", authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query("SELECT id, username, email, created_at, updated_at FROM users WHERE id = $1", [req.user.id]);
+    const result = await pool.query("SELECT id, username, email, role, created_at, updated_at FROM users WHERE id = $1", [req.user.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
     return res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// PROTECTED: оновити свій профіль (username, email, password) — password хешується
+// UPDATE PROFILE
 app.put("/me", authMiddleware, async (req, res) => {
   const { username, email, password } = req.body;
   const userId = req.user.id;
 
   try {
-    // отримуємо поточні дані
     const curr = await pool.query("SELECT id, username, email FROM users WHERE id = $1", [userId]);
     if (curr.rows.length === 0) return res.status(404).json({ error: "User not found" });
 
@@ -143,17 +136,17 @@ app.put("/me", authMiddleware, async (req, res) => {
     if (password) {
       newPasswordHash = await bcrypt.hash(password, 12);
       await pool.query(
-        "UPDATE users SET username=$1, email=$2, password=$3, updated_at = CURRENT_TIMESTAMP WHERE id=$4",
+        "UPDATE users SET username=$1, email=$2, password=$3, updated_at=CURRENT_TIMESTAMP WHERE id=$4",
         [newUsername, newEmail, newPasswordHash, userId]
       );
     } else {
       await pool.query(
-        "UPDATE users SET username=$1, email=$2, updated_at = CURRENT_TIMESTAMP WHERE id=$3",
+        "UPDATE users SET username=$1, email=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3",
         [newUsername, newEmail, userId]
       );
     }
 
-    const updated = await pool.query("SELECT id, username, email, created_at, updated_at FROM users WHERE id=$1", [userId]);
+    const updated = await pool.query("SELECT id, username, email, role, created_at, updated_at FROM users WHERE id=$1", [userId]);
     return res.json(updated.rows[0]);
   } catch (err) {
     if (err.code === "23505") return res.status(409).json({ error: "Email or username already exists" });
@@ -162,19 +155,17 @@ app.put("/me", authMiddleware, async (req, res) => {
   }
 });
 
-// PROTECTED: отримати список усіх користувачів (без паролів) — приклад
+// GET ALL USERS (PROTECTED)
 app.get("/users", authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query("SELECT id, username, email, created_at FROM users ORDER BY id DESC");
+    const result = await pool.query("SELECT id, username, email, role, created_at FROM users ORDER BY id DESC");
     return res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Слухаємо порт
+// Start server
 const PORT = Number(process.env.PORT || 3000);
-app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
